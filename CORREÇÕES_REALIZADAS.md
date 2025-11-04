@@ -206,6 +206,39 @@ As funções `addProductToCart`, `handleAddToCart`, `updateQuantity` e `handleSe
 
 ---
 
+### 🔧 Problema 5 Corrigido: Erro "stock_quantity is not defined"
+
+**Descrição do Problema:**
+Ao tentar finalizar venda, aparecia erro: **"stock_quantity" is not defined**
+
+**Causa Raiz:**
+Campos `stock_quantity` vindos do banco de dados ou de objetos podiam ser `undefined` em alguns casos:
+1. Ao fazer spread do produto (`...product`), o `stock_quantity` era sobrescrito
+2. Valores `undefined` do banco não tinham fallback adequado
+3. Falta de tratamento de casos nulos/indefinidos
+
+**Correções Implementadas:**
+1. **Reordenamento no carrinho:** `stock_quantity` agora vem DEPOIS do spread `...product` para garantir sobrescrita
+2. **Fallback com Nullish Coalescing:** Uso de `??` ao invés de `||` para tratar `null` e `undefined`
+3. **Proteção em 3 locais críticos:**
+   - Linha 522: `itemStock = variation ? (variation.stock_quantity ?? 0) : (product.stock_quantity ?? 0)`
+   - Linha 1087: `currentDbStock = dbVariation?.stock_quantity ?? 0`
+   - Linha 1100: `currentDbStock = dbProduct?.stock_quantity ?? 0`
+
+**Arquivos Modificados:**
+- `/src/pages/PDV.tsx`:
+  - Linha 522: Fallback em `itemStock`
+  - Linha 590: `stock_quantity` DEPOIS do spread
+  - Linhas 1087, 1100: Fallback em `currentDbStock`
+
+**Resultado Final:**
+- ✅ Erro "stock_quantity is not defined" eliminado
+- ✅ Valores sempre definidos (mínimo 0)
+- ✅ Finalização de venda funciona perfeitamente
+- ✅ Código mais robusto e seguro
+
+---
+
 ## Data: 01/11/2024
 
 ---

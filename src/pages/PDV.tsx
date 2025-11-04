@@ -519,7 +519,7 @@ export default function PDV() {
     playClick(); // Toca o som de clique
     
     const itemPrice = variation ? product.price + variation.price_adjustment : product.price;
-    const itemStock = variation ? variation.stock_quantity : product.stock_quantity;
+    const itemStock = variation ? (variation.stock_quantity ?? 0) : (product.stock_quantity ?? 0);
     const itemId = variation ? `${product.id}-${variation.id}` : product.id;
     const isComposite = variation?.is_composite || false; // Verificar se é item composto
 
@@ -586,11 +586,11 @@ export default function PDV() {
       }
       
       setCart([...cart, { 
-        ...product, 
+        ...product,
+        stock_quantity: itemStock, // IMPORTANTE: Deve vir DEPOIS do spread para sobrescrever
         id: product.id, // Keep original product ID
         quantity: 1, 
         price: itemPrice, // Use adjusted price
-        stock_quantity: itemStock, // Use variation stock
         selectedVariation: variation,
         isRedeemedWithPoints: false, // NOVO: Inicialmente não resgatado
       }]);
@@ -1084,7 +1084,7 @@ export default function PDV() {
           console.error(`Erro ao buscar estoque da variação ${item.selectedVariation.name}:`, dbError.message);
           return; // Skip update for this item if stock can't be fetched
         }
-        currentDbStock = dbVariation.stock_quantity;
+        currentDbStock = dbVariation?.stock_quantity ?? 0;
       } else {
         tableName = "products";
         itemId = item.id;
@@ -1097,7 +1097,7 @@ export default function PDV() {
           console.error(`Erro ao buscar estoque do produto ${item.name}:`, dbError.message);
           return; // Skip update for this item if stock can't be fetched
         }
-        currentDbStock = dbProduct.stock_quantity;
+        currentDbStock = dbProduct?.stock_quantity ?? 0;
       }
 
       const newQuantity = Math.max(0, currentDbStock - item.quantity);
