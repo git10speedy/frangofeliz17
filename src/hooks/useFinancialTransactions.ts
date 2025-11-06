@@ -19,10 +19,16 @@ export function useFinancialTransactions(filters?: FinancialReportFilters) {
   const queryClient = useQueryClient();
 
   // Buscar transações com filtros
-  const { data: transactions, isLoading } = useQuery({
+  const { data: transactions, isLoading, error: queryError } = useQuery({
     queryKey: ['financial-transactions', profile?.store_id, filters],
     queryFn: async (): Promise<FinancialTransaction[]> => {
-      if (!profile?.store_id) return [];
+      if (!profile?.store_id) {
+        console.log('[Financial Transactions] No store_id found');
+        return [];
+      }
+
+      console.log('[Financial Transactions] Fetching with store_id:', profile.store_id);
+      console.log('[Financial Transactions] Filters:', filters);
 
       let query = supabase
         .from('financial_transactions')
@@ -64,7 +70,12 @@ export function useFinancialTransactions(filters?: FinancialReportFilters) {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('[Financial Transactions] Error fetching:', error);
+        throw error;
+      }
+      
+      console.log('[Financial Transactions] Fetched:', data?.length, 'transactions');
       return data || [];
     },
     enabled: !!profile?.store_id,
@@ -73,16 +84,24 @@ export function useFinancialTransactions(filters?: FinancialReportFilters) {
   // Criar transação
   const createTransaction = useMutation({
     mutationFn: async (newTransaction: Omit<FinancialTransaction, 'id' | 'created_at' | 'updated_at'>) => {
+      console.log('[Financial Transactions] Creating transaction:', newTransaction);
+      
       const { data, error } = await supabase
         .from('financial_transactions')
         .insert([newTransaction])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[Financial Transactions] Error creating:', error);
+        throw error;
+      }
+      
+      console.log('[Financial Transactions] Created successfully:', data);
       return data;
     },
     onSuccess: () => {
+      console.log('[Financial Transactions] Invalidating queries...');
       queryClient.invalidateQueries({ queryKey: ['financial-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
@@ -92,6 +111,7 @@ export function useFinancialTransactions(filters?: FinancialReportFilters) {
       });
     },
     onError: (error: any) => {
+      console.error('[Financial Transactions] Mutation error:', error);
       toast({
         title: 'Erro ao criar lançamento',
         description: error.message,
