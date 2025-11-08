@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, Package, Info, MessageCircle, XCircle, Search, ArrowRight, Check, Star, Volume2, VolumeX } from "lucide-react";
+import { CheckCircle, Clock, Package, Info, MessageCircle, XCircle, Search, ArrowRight, Check, Star, Volume2, VolumeX, Printer } from "lucide-react";
 import { supabase as sb } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -328,6 +328,204 @@ export default function OrderPanel() {
     window.open(whatsappUrl, '_blank');
   };
 
+  const handlePrintOrder = (order: Order) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao imprimir",
+        description: "Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-ups está desativado.",
+      });
+      return;
+    }
+
+    const customerName = order.customers?.name || 'Cliente Anônimo';
+    const customerPhone = order.customers?.phone || 'N/A';
+    const orderDate = new Date(order.created_at).toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    let printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Pedido #${order.order_number}</title>
+          <style>
+            body {
+              font-family: 'Courier New', monospace;
+              max-width: 300px;
+              margin: 20px auto;
+              padding: 0;
+              font-size: 12px;
+            }
+            .header {
+              text-align: center;
+              background-color: #2a2a2a !important;
+              color: white;
+              padding: 15px 10px;
+              margin-bottom: 10px;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+              color-adjust: exact;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 18px;
+              font-weight: bold;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .header .phone {
+              margin-top: 5px;
+              font-size: 14px;
+            }
+            .content {
+              padding: 10px;
+            }
+            .order-info {
+              margin-bottom: 5px;
+            }
+            .order-info div {
+              margin: 2px 0;
+              font-size: 12px;
+            }
+            .section {
+              margin: 5px 0;
+              padding: 5px 0;
+            }
+            .section-title {
+              font-weight: bold;
+              margin-bottom: 3px;
+              font-size: 12px;
+            }
+            .section div {
+              font-size: 12px;
+            }
+            .item {
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
+            }
+            .divider {
+              border-top: 1px dashed #333;
+              margin: 8px 0;
+            }
+            .total {
+              font-size: 14px;
+              font-weight: bold;
+              margin-top: 8px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 10px;
+              font-size: 11px;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              .header {
+                background-color: #2a2a2a !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${customerName.toUpperCase()}</h1>
+            ${customerPhone !== 'N/A' ? `<div class="phone">${customerPhone}</div>` : ''}
+          </div>
+
+          <div class="content">
+            <div class="order-info">
+              <div>Pedido #${order.order_number}</div>
+              <div>${orderDate}</div>
+            </div>
+
+            ${order.delivery ? `
+              <div class="divider"></div>
+              <div class="section">
+                <div class="section-title">ENTREGA</div>
+                <div>${order.delivery_address}, ${order.delivery_number}</div>
+                ${order.delivery_reference ? `<div>Ref: ${order.delivery_reference}</div>` : ''}
+              </div>
+            ` : ''}
+
+            ${order.pickup_time ? `
+              <div class="divider"></div>
+              <div class="section">
+                <div class="section-title">RETIRADA</div>
+                <div>Horário: ${order.pickup_time}</div>
+              </div>
+            ` : ''}
+
+            ${order.reservation_date ? `
+              <div class="divider"></div>
+              <div class="section">
+                <div class="section-title">RESERVA</div>
+                <div>Data: ${new Date(order.reservation_date).toLocaleDateString('pt-BR')}</div>
+              </div>
+            ` : ''}
+
+            <div class="divider"></div>
+
+            <div class="section">
+              <div class="section-title">ITENS DO PEDIDO</div>
+              ${order.order_items.map(item => {
+                const isRedeemed = item.product_price === 0 && item.subtotal === 0;
+                return `
+                  <div class="item">
+                    <span>${item.quantity}x ${item.product_name}${item.variation_name ? ` (${item.variation_name})` : ''}${isRedeemed ? ' ⭐' : ''}</span>
+                    <span>${isRedeemed ? 'RESGATADO' : `R$ ${item.subtotal.toFixed(2)}`}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="section">
+              <div><strong>Pagamento:</strong> ${order.payment_method}</div>
+            </div>
+
+            <div class="total">
+              TOTAL: R$ ${order.total.toFixed(2)}
+            </div>
+
+            <div class="footer">
+              Obrigado pela preferência!
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            };
+            
+            // Fecha a janela automaticamente após imprimir ou cancelar
+            window.onafterprint = function() {
+              setTimeout(function() {
+                window.close();
+              }, 100);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  };
+
   const getStatusBadge = (status: Enums<'order_status'>) => {
     const label = STATUS_LABELS[status] || status;
     const colors = STATUS_COLORS[status] || STATUS_COLORS.pending;
@@ -568,16 +766,26 @@ export default function OrderPanel() {
                                       );
                                     })}
                                   </div>
-                                  {order.delivery && motoboyWhatsappNumber && (
+                                  <div className="flex gap-2 mt-4">
+                                    {order.delivery && motoboyWhatsappNumber && (
+                                      <Button
+                                        onClick={() => handleSendWhatsappToMotoboy(order)}
+                                        className="flex-1"
+                                        variant="outline"
+                                      >
+                                        <MessageCircle className="h-4 w-4 mr-2" />
+                                        WhatsApp Motoboy
+                                      </Button>
+                                    )}
                                     <Button
-                                      onClick={() => handleSendWhatsappToMotoboy(order)}
-                                      className="w-full mt-4"
+                                      onClick={() => handlePrintOrder(order)}
+                                      className={order.delivery && motoboyWhatsappNumber ? "flex-1" : "w-full"}
                                       variant="outline"
                                     >
-                                      <MessageCircle className="h-4 w-4 mr-2" />
-                                      WhatsApp Motoboy
+                                      <Printer className="h-4 w-4 mr-2" />
+                                      Imprimir Pedido
                                     </Button>
-                                  )}
+                                  </div>
                                 </div>
                               </DialogContent>
                             </Dialog>
