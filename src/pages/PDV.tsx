@@ -99,7 +99,7 @@ interface CustomerAddress {
 }
 
 type OrderSource = "totem" | "whatsapp" | "loja_online" | "presencial" | "ifood";
-type PaymentMethod = "pix" | "credito" | "debito" | "dinheiro" | "fidelidade";
+type PaymentMethod = "pix" | "credito" | "debito" | "dinheiro" | "fidelidade" | "reserva";
 
 export default function PDV() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -131,6 +131,8 @@ export default function PDV() {
   const [isDelivery, setIsDelivery] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState("");
   const [changeFor, setChangeFor] = useState("");
+  const [isReserva, setIsReserva] = useState(false);
+  const [reservaPickupTime, setReservaPickupTime] = useState<string>("");
 
   // New states for delivery address
   const [address, setAddress] = useState("");
@@ -715,6 +717,9 @@ export default function PDV() {
     setSkipCep(false);
     setSaveAddress(false);
     setSelectedSavedAddressId(null);
+    // Clear reserva fields
+    setIsReserva(false);
+    setReservaPickupTime("");
   };
 
   // NOVO: Cálculo do subtotal monetário e total de pontos a serem resgatados
@@ -1110,6 +1115,15 @@ export default function PDV() {
       return;
     }
 
+    if (isReserva && !reservaPickupTime) {
+      toast({
+        variant: "destructive",
+        title: "Horário de retirada obrigatório",
+        description: "Selecione o horário para retirada da reserva",
+      });
+      return;
+    }
+
     const { data: cashRegister } = await supabase
       .from("cash_register" as any)
       .select("id")
@@ -1165,6 +1179,7 @@ export default function PDV() {
         delivery_neighborhood: isDelivery ? neighborhood : null,
         delivery_reference: isDelivery ? reference : null,
         delivery_cep: isDelivery && !skipCep ? cep : null,
+        pickup_time: isReserva ? reservaPickupTime : null, // Salvar horário de retirada se for reserva
         status: initialStatus, // Usar o status inicial dinâmico
       })
       .select()
@@ -1539,6 +1554,7 @@ export default function PDV() {
     debito: CreditCard,
     dinheiro: Banknote,
     fidelidade: Star,
+    reserva: Clock,
   };
 
   const paymentMethodLabels = {
@@ -1547,6 +1563,7 @@ export default function PDV() {
     debito: "Débito",
     dinheiro: "Dinheiro",
     fidelidade: "Fidelidade",
+    reserva: "Reserva",
   };
 
   const productsByCategory = getProductsByCategory();
@@ -1975,10 +1992,46 @@ export default function PDV() {
                     </div>
                   )}
 
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="reserva" className="cursor-pointer">Reserva?</Label>
+                    <Checkbox
+                      id="reserva"
+                      checked={isReserva}
+                      onCheckedChange={(checked) => {
+                        setIsReserva(checked === true);
+                        if (!checked) {
+                          setReservaPickupTime("");
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {isReserva && (
+                    <div className="space-y-2">
+                      <Label htmlFor="reservaPickupTime">Horário de Retirada</Label>
+                      <Select value={reservaPickupTime} onValueChange={setReservaPickupTime}>
+                        <SelectTrigger id="reservaPickupTime">
+                          <SelectValue placeholder="Selecione o horário" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10:00">10:00</SelectItem>
+                          <SelectItem value="10:30">10:30</SelectItem>
+                          <SelectItem value="11:00">11:00</SelectItem>
+                          <SelectItem value="11:30">11:30</SelectItem>
+                          <SelectItem value="12:00">12:00</SelectItem>
+                          <SelectItem value="12:30">12:30</SelectItem>
+                          <SelectItem value="13:00">13:00</SelectItem>
+                          <SelectItem value="13:30">13:30</SelectItem>
+                          <SelectItem value="14:00">14:00</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="paymentMethod">Forma de Pagamento</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      {(["pix", "credito", "debito", "dinheiro"] as PaymentMethod[]).map((method) => { // Removido "fidelidade" daqui
+                      {(["pix", "credito", "debito", "dinheiro", "reserva"] as PaymentMethod[]).map((method) => { // Adicionado "reserva"
                         const Icon = paymentMethodIcons[method];
                         return (
                           <Button
