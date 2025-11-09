@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, Package, Info, MessageCircle, XCircle, Search, ArrowRight, Check, Star, Volume2, VolumeX, Printer } from "lucide-react";
+import { CheckCircle, Clock, Package, Info, MessageCircle, XCircle, Search, ArrowRight, Check, Star, Volume2, VolumeX, Printer, QrCode, CreditCard, Banknote } from "lucide-react";
 import { supabase as sb } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -78,6 +78,9 @@ export default function OrderPanel() {
   const [motoboyWhatsappNumber, setMotoboyWhatsappNumber] = useState<string | null>(null);
   const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showPaymentSelectionDialog, setShowPaymentSelectionDialog] = useState(false);
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<Order | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const { profile } = useAuth();
   const { toast } = useToast();
   const { notify, isEnabled: isSoundEnabled, toggleSound } = useSoundNotification(); // Desestruturando para o botão
@@ -201,6 +204,17 @@ export default function OrderPanel() {
       return;
     }
 
+    // Verificar se o pedido tem forma de pagamento "Reserva" e está sendo concluído
+    if (orderToUpdate.payment_method?.toLowerCase() === "reserva" && status === "delivered") {
+      // Abrir popup para selecionar forma de pagamento
+      const fullOrder = orders.find(o => o.id === orderId);
+      if (fullOrder) {
+        setSelectedOrderForPayment(fullOrder);
+        setShowPaymentSelectionDialog(true);
+        return;
+      }
+    }
+
     // Update order status
     const { error: updateError } = await supabase
       .from("orders")
@@ -298,6 +312,57 @@ export default function OrderPanel() {
       return;
     }
     await updateOrderStatus(orderId, "cancelled");
+  };
+
+  const handleConfirmPaymentAndComplete = async () => {
+    if (!selectedOrderForPayment || !selectedPaymentMethod) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Selecione uma forma de pagamento.",
+      });
+      return;
+    }
+
+    // Atualizar a forma de pagamento do pedido
+    const { error: updatePaymentError } = await supabase
+      .from("orders")
+      .update({ payment_method: selectedPaymentMethod })
+      .eq("id", selectedOrderForPayment.id);
+
+    if (updatePaymentError) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao atualizar pagamento",
+        description: updatePaymentError.message,
+      });
+      return;
+    }
+
+    // Atualizar o status para concluído
+    const { error: updateStatusError } = await supabase
+      .from("orders")
+      .update({ status: "delivered" })
+      .eq("id", selectedOrderForPayment.id);
+
+    if (updateStatusError) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao concluir pedido",
+        description: updateStatusError.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Pedido concluído!",
+      description: `Pagamento atualizado para ${selectedPaymentMethod}.`,
+    });
+
+    setShowPaymentSelectionDialog(false);
+    setSelectedOrderForPayment(null);
+    setSelectedPaymentMethod(null);
+    loadOrders();
   };
 
   const handleSendWhatsappToMotoboy = (order: Order) => {
@@ -834,6 +899,55 @@ export default function OrderPanel() {
           })}
         </div>
       </div>
+
+      {/* Dialog para seleção de forma de pagamento */}
+      <Dialog open={showPaymentSelectionDialog} onOpenChange={setShowPaymentSelectionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Selecionar Forma de Pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Este pedido está marcado como "Reserva". Selecione a forma de pagamento para concluir:
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {["PIX", "Crédito", "Débito", "Dinheiro"].map((method) => (
+                <Button
+                  key={method}
+                  variant={selectedPaymentMethod === method ? "default" : "outline"}
+                  onClick={() => setSelectedPaymentMethod(method)}
+                  className="h-16 flex flex-col items-center justify-center gap-1"
+                >
+                  {method === "PIX" && <QrCode className="h-5 w-5" />}
+                  {method === "Crédito" && <CreditCard className="h-5 w-5" />}
+                  {method === "Débito" && <CreditCard className="h-5 w-5" />}
+                  {method === "Dinheiro" && <Banknote className="h-5 w-5" />}
+                  {method}
+                </Button>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setShowPaymentSelectionDialog(false);
+                  setSelectedPaymentMethod(null);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleConfirmPaymentAndComplete}
+                disabled={!selectedPaymentMethod}
+              >
+                Confirmar e Concluir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

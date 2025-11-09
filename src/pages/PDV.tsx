@@ -99,7 +99,7 @@ interface CustomerAddress {
 }
 
 type OrderSource = "totem" | "whatsapp" | "loja_online" | "presencial" | "ifood";
-type PaymentMethod = "pix" | "credito" | "debito" | "dinheiro" | "fidelidade";
+type PaymentMethod = "pix" | "credito" | "debito" | "dinheiro" | "fidelidade" | "reserva";
 
 export default function PDV() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -1539,6 +1539,7 @@ export default function PDV() {
     debito: CreditCard,
     dinheiro: Banknote,
     fidelidade: Star,
+    reserva: Clock,
   };
 
   const paymentMethodLabels = {
@@ -1547,6 +1548,7 @@ export default function PDV() {
     debito: "Débito",
     dinheiro: "Dinheiro",
     fidelidade: "Fidelidade",
+    reserva: "Reserva",
   };
 
   const productsByCategory = getProductsByCategory();
@@ -1978,7 +1980,7 @@ export default function PDV() {
                   <div className="space-y-2">
                     <Label htmlFor="paymentMethod">Forma de Pagamento</Label>
                     <div className="grid grid-cols-2 gap-2">
-                      {(["pix", "credito", "debito", "dinheiro"] as PaymentMethod[]).map((method) => { // Removido "fidelidade" daqui
+                      {(["pix", "credito", "debito", "dinheiro", "reserva"] as PaymentMethod[]).map((method) => { // Adicionado "reserva"
                         const Icon = paymentMethodIcons[method];
                         return (
                           <Button
